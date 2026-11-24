@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 from typing import List, Dict, ClassVar
+import os
 import requests
-
-from sources.articles.key import API_KEY
 from sources.articles.article import Article
+
+
+API_KEY: str = os.environ.get("NEWS_API_KEY", "")
 
 
 @dataclass
@@ -23,7 +25,12 @@ class ArticlesGetter:
             url: str = f"https://newsapi.org/v2/top-headlines?country=fr" \
                        f"&pageSize={ArticlesGetter.__PAGE_LENGTH}" \
                        f"&page={page_index}&apiKey={API_KEY}"
-            data: Dict[str, ...] = requests.get(url).json()
+            data: Dict[str, ...] = requests.get(url, timeout=10).json()
+
+            if data.get("status") != "ok":
+                raise RuntimeError(f"NewsAPI error: {data.get('message', data)}")
+            if not data["articles"]:
+                break
 
             element: Dict[str, ...]
             for element in data["articles"]:
@@ -36,7 +43,8 @@ class ArticlesGetter:
 
             page_index += 1
 
-        assert len(self.__articles) == self.__count
+        if len(self.__articles) < self.__count:
+            raise RuntimeError(f"Only {len(self.__articles)}/{self.__count} valid articles found")
 
     def __getitem__(self, index: int):
         assert 0 <= index < self.__count
